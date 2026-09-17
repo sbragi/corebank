@@ -11,10 +11,15 @@ Projeto de referência de uma plataforma de conta digital em Java 21 / Spring Bo
 - Docker Compose
 - Testes unitários com Mockito
 - Testes de integração com Testcontainers
-- JaCoCo
 - Teste de performance em Java 21
 
 ## Arquitetura
+
+Com esta arquitetura conseguiremos manter a resiliencia busca do saldo sem sobrecarregar o banco principal.
+A leitura do saldo será feita somente no Redis com execeção do endPoint de autorização do cartão
+
+O Trade off seria a carga incial do Redis, que incialmente estará vazio e so será atualizado pelo CDC quando alguma alteração ocorrer no Postgrees
+Será necessário criar um script para fazer a carga inicial, após isso o sistema funcionará conforme planejado
 
 ```text
                      +----------------+
