@@ -1,0 +1,91 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: corebank-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: corebank
+      POSTGRES_USER: corebank
+      POSTGRES_PASSWORD: corebank
+    ports:
+      - "5432:5432"
+    command:
+      - postgres
+      - -c
+      - wal_level=logical
+      - -c
+      - max_replication_slots=10
+      - -c
+      - max_wal_senders=10
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U corebank -d corebank"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [corebank-network]
+
+  redis:
+    image: redis:7-alpine
+    container_name: corebank-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "512mb", "--maxmemory-policy", "allkeys-lru"]
+    ports: ["6379:6379"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [corebank-network]
+
+  corebank:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: corebank-app
+    restart: unless-stopped
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/corebank
+      DB_USERNAME: corebank
+      DB_PASSWORD: corebank
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      CDC_ENABLED: "true"
+      BALANCE_CACHE_TTL_SECONDS: "0"
+      CDC_STREAM: "corebank.public.account"
+      CDC_GROUP: "corebank-balance-cache"
+      CDC_CONSUMER: "corebank-1"
+    ports: ["8080:8080"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q 'UP'"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    networks: [corebank-network]
+
+  debezium:
+    image: quay.io/debezium/server:3.1.3.Final
+    container_name: corebank-debezium
+    restart: unless-stopped
+    depends_on:
+      corebank: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    volumes:
+      - ./docker/debezium/application.properties:/debezium/config/application.properties:ro
+      - debezium-data:/debezium/data
+    networks: [corebank-network]
+
+volumes:
+  postgres-data:
+  redis-data:
+  debezium-data:
+
+networks:
+  corebank-network:
+    driver: bridge

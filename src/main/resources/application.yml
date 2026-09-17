@@ -1,0 +1,73 @@
+spring:
+  application:
+    name: corebank
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/corebank}
+    username: ${DB_USERNAME:corebank}
+    password: ${DB_PASSWORD:corebank}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:30}
+      minimum-idle: 5
+      connection-timeout: 3000
+      idle-timeout: 30000
+      max-lifetime: 1800000
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+        format_sql: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2s
+
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+corebank:
+  cache:
+    balance:
+      key-prefix: "balance:"
+  cdc:
+    enabled: ${CDC_ENABLED:true}
+    stream: ${CDC_STREAM:corebank.public.account}
+    group: ${CDC_GROUP:corebank-balance-cache}
+    consumer: ${CDC_CONSUMER:corebank-1}
+    block-ms: ${CDC_BLOCK_MS:2000}
+    batch-size: ${CDC_BATCH_SIZE:100}
+
+logging:
+  level:
+    root: INFO
+    com.corebank: INFO
+    com.corebank.account: DEBUG
+    com.corebank.payment: DEBUG
+    com.corebank.card: DEBUG
+    com.corebank.cdc: DEBUG
+    org.springframework.web: INFO
+    org.springframework.data.redis: WARN
+    org.hibernate.SQL: WARN
+    org.hibernate.orm.jdbc.bind: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
